@@ -1,7 +1,240 @@
-ï»¿@page "/"
+@page "/"
+@using IMS.CoreBusiness
+@using IMS.UseCases.Inventories
+@inject IViewInventoriesByNameUseCase ViewInventoriesByNameUseCase
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Inventory Dashboard</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="inventory-shell">
+    <section class="hero-card">
+        <div class="hero-copy">
+            <p class="eyebrow">Inventory management MVP</p>
+            <h1>ProData warehouse control at a glance.</h1>
+            <p class="hero-text">
+                Track product availability, watch low-stock items, and keep an eye on inventory value from a single dashboard.
+            </p>
+        </div>
 
-Welcome to your new app.
+        <div class="hero-grid">
+            <div class="metric-card">
+                <span class="metric-label">Visible SKUs</span>
+                <strong>@FilteredInventories.Count</strong>
+                <span class="metric-note">Filtered product lines in view</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Units on hand</span>
+                <strong>@FilteredInventories.Sum(item => item.Quantity)</strong>
+                <span class="metric-note">Across the active selection</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Inventory value</span>
+                <strong>@FilteredInventories.Sum(item => item.InventoryValue).ToString("C")</strong>
+                <span class="metric-note">Current sell-through value</span>
+            </div>
+            <div class="metric-card metric-alert">
+                <span class="metric-label">Needs attention</span>
+                <strong>@FilteredInventories.Count(item => item.IsLowStock)</strong>
+                <span class="metric-note">Low stock or stockout items</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="toolbar-card">
+        <div class="field-group search-field">
+            <label for="searchText">Search inventory</label>
+            <input id="searchText" @bind="searchText" @bind:event="oninput" placeholder="Search by name, SKU, category, or supplier" />
+        </div>
+
+        <div class="field-group">
+            <label for="categoryFilter">Category</label>
+            <select id="categoryFilter" @bind="selectedCategory">
+                @foreach (var category in Categories)
+                {
+                    <option value="@category">@category</option>
+                }
+            </select>
+        </div>
+
+        <div class="field-group">
+            <label for="stockFilter">Stock status</label>
+            <select id="stockFilter" @bind="selectedStockState">
+                <option>All stock levels</option>
+                <option>In stock</option>
+                <option>Low stock</option>
+                <option>Out of stock</option>
+            </select>
+        </div>
+    </section>
+
+    <section class="insight-grid">
+        <article class="insight-card">
+            <p class="insight-label">Low stock watch</p>
+            @if (LowStockInventories.Any())
+            {
+                <ul class="watch-list">
+                    @foreach (var item in LowStockInventories.Take(4))
+                    {
+                        <li>
+                            <strong>@item.InventoryName</strong>
+                            <span>@item.Quantity left · reorder at @item.ReorderLevel</span>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="insight-empty">All visible products are above their reorder level.</p>
+            }
+        </article>
+
+        <article class="insight-card">
+            <p class="insight-label">Highest value SKU</p>
+            @if (HighestValueInventory is not null)
+            {
+                <div class="highlight-block">
+                    <strong>@HighestValueInventory.InventoryName</strong>
+                    <span>@HighestValueInventory.Sku · @HighestValueInventory.Category</span>
+                    <span>@HighestValueInventory.InventoryValue.ToString("C") total on hand</span>
+                </div>
+            }
+        </article>
+    </section>
+
+    <section class="table-card">
+        <div class="table-header">
+            <div>
+                <p class="eyebrow">Live catalog</p>
+                <h2>Product inventory</h2>
+            </div>
+            <span class="table-summary">@FilteredInventories.Count items shown</span>
+        </div>
+
+        @if (isLoading)
+        {
+            <p class="table-empty">Loading inventory...</p>
+        }
+        else if (!FilteredInventories.Any())
+        {
+            <p class="table-empty">No products match the current filters.</p>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Category</th>
+                            <th>Supplier</th>
+                            <th>Location</th>
+                            <th>Stock</th>
+                            <th>Value</th>
+                            <th>Restocked</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in FilteredInventories)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="product-cell">
+                                        <strong>@item.InventoryName</strong>
+                                        <span>@item.Sku</span>
+                                    </div>
+                                </td>
+                                <td>@item.Category</td>
+                                <td>@item.Supplier</td>
+                                <td>@item.StorageLocation</td>
+                                <td>
+                                    <div class="stock-cell">
+                                        <span class="status-pill @GetStatusClass(item)">@item.StockStatus</span>
+                                        <small>@item.Quantity units · reorder @item.ReorderLevel</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="value-cell">
+                                        <strong>@item.InventoryValue.ToString("C")</strong>
+                                        <span>@item.UnitPrice.ToString("C") each</span>
+                                    </div>
+                                </td>
+                                <td>@item.LastRestockedOn.ToString("dd MMM yyyy")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private List<Inventory> allInventories = new();
+    private bool isLoading = true;
+    private string searchText = string.Empty;
+    private string selectedCategory = "All categories";
+    private string selectedStockState = "All stock levels";
+
+    private List<string> Categories => new[] { "All categories" }
+        .Concat(allInventories.Select(item => item.Category).Distinct().OrderBy(category => category))
+        .ToList();
+
+    private List<Inventory> FilteredInventories => allInventories
+        .Where(MatchesSearch)
+        .Where(MatchesCategory)
+        .Where(MatchesStockState)
+        .OrderBy(item => item.IsLowStock ? 0 : 1)
+        .ThenBy(item => item.Category)
+        .ThenBy(item => item.InventoryName)
+        .ToList();
+
+    private IEnumerable<Inventory> LowStockInventories => FilteredInventories.Where(item => item.IsLowStock);
+
+    private Inventory? HighestValueInventory => FilteredInventories
+        .OrderByDescending(item => item.InventoryValue)
+        .FirstOrDefault();
+
+    protected override async Task OnInitializedAsync()
+    {
+        allInventories = (await ViewInventoriesByNameUseCase.ExecuteAsync()).ToList();
+        isLoading = false;
+    }
+
+    private bool MatchesSearch(Inventory item)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return true;
+        }
+
+        return item.InventoryName.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            || item.Sku.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            || item.Category.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            || item.Supplier.Contains(searchText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesCategory(Inventory item)
+    {
+        return selectedCategory == "All categories" || item.Category == selectedCategory;
+    }
+
+    private bool MatchesStockState(Inventory item)
+    {
+        return selectedStockState switch
+        {
+            "In stock" => !item.IsLowStock && item.Quantity > 0,
+            "Low stock" => item.IsLowStock && item.Quantity > 0,
+            "Out of stock" => item.Quantity == 0,
+            _ => true
+        };
+    }
+
+    private static string GetStatusClass(Inventory item)
+    {
+        return item.StockStatus switch
+        {
+            "Out of stock" => "status-out",
+            "Low stock" => "status-low",
+            _ => "status-ok"
+        };
+    }
+}
