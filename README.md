@@ -32,53 +32,11 @@ The repo includes `global.json` to pin the SDK version used during local develop
 
 ## Run The App
 
-From the repo root:
-
-```powershell
-cd "D:\C Sharp Practice Projects\IMS"
-$env:DOTNET_CLI_HOME = (Join-Path $PWD '.dotnet')
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-dotnet run --project .\IMS.WebApp\IMS.WebApp.csproj --launch-profile http -m:1 -p:BuildInParallel=false
-```
+dotnet run 
 
 Open:
 
 - `http://localhost:5108`
-
-## Rebuild Only
-
-```powershell
-cd "D:\C Sharp Practice Projects\IMS"
-$env:DOTNET_CLI_HOME = (Join-Path $PWD '.dotnet')
-$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
-dotnet build .\IMS.WebApp\IMS.WebApp.csproj -m:1 -p:BuildInParallel=false
-```
-
-## If You See Locked DLL Errors
-
-If `dotnet run` or `dotnet build` fails with `MSB3021` or `MSB3027`, an older app instance is still running and locking the output files.
-
-Stop the running app first:
-
-```powershell
-Get-Process dotnet | Stop-Process -Force
-```
-
-Then rerun the `dotnet build` or `dotnet run` command.
-
-If you only want to stop the process using the app port:
-
-```powershell
-netstat -ano | findstr :5108
-Stop-Process -Id <PID> -Force
-```
-
-## Why The Extra Build Flags Matter
-
-This machine has shown intermittent parallel MSBuild issues when project references are evaluated. These flags make local builds reliable:
-
-- `-m:1`
-- `-p:BuildInParallel=false`
 
 ## Current MVP Scope
 
@@ -89,7 +47,7 @@ The current implementation is intentionally simple and focused on demo readiness
 - No create/edit/delete workflow yet
 - No authentication yet
 
-## Suggested Next Steps
+## Next Steps
 
 - Add create, edit, and delete inventory screens
 - Add SQLite or SQL Server persistence
