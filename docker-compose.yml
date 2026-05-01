@@ -1,0 +1,10 @@
+services:
+  ims-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ims-webapp:latest
+    container_name: ims-webapp
+    restart: unless-stopped
+    ports:
+      - "5108:8080"
